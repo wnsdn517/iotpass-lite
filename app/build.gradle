@@ -1,0 +1,33 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'dev.hoduj.iotpasslite'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "dev.hoduj.iotpasslite"
+        // Android 12+ only: lets BLUETOOTH_SCAN be declared with neverForLocation, so this
+        // app never has to ask for (or hold) any location permission.
+        minSdk 31
+        targetSdk 36
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.13.1'
+}

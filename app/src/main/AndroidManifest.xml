@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- We only use scan results to match a specific door's MAC address, never to derive
+         location, so neverForLocation lets us skip every location permission entirely. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Optional: only for the brief send animation; falls back to a toast without it. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.IoTPassLite">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ScanDoorListActivity"
+            android:exported="false"
+            android:theme="@style/Theme.IoTPassLite.Sheet"
+            android:label="@string/scan_title" />
+
+        <activity
+            android:name=".EventLogActivity"
+            android:exported="false"
+            android:label="@string/log_title" />
+
+        <!-- Target of the system-registered PendingIntent scan. Not exported: only the
+             Bluetooth stack (holding the matching PendingIntent) can trigger it, which is also
+             what lets this receiver keep firing even after the app process has been killed. -->
+        <receiver
+            android:name=".DoorScanReceiver"
+            android:exported="false" />
+
+        <!-- Re-arms the watcher after anything that can silently clear the system scan
+             registration: a reboot, this app being updated, or Bluetooth being toggled off and
+             back on (all three are exempt from the API 26+ implicit-broadcast restrictions, so a
+             manifest-declared receiver works without needing a process to already be alive). -->
+        <receiver
+            android:name=".RearmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.bluetooth.adapter.action.STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

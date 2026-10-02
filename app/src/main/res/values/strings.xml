@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">IoTPass Lite</string>
+
+    <string name="label_door_mac">출입문 리더기 MAC 주소 (한 줄에 하나씩, 여러 개 가능)</string>
+    <string name="hint_door_mac">예:\nD0:BE:2C:2A:57:BB\nD0:BE:2C:11:22:33</string>
+    <string name="label_phone_number">등록된 휴대폰 번호</string>
+    <string name="hint_phone_number">예: 01012345678</string>
+    <string name="label_enabled">자동 출입 사용</string>
+
+    <string name="status_running">동작 중 — 출입문 근처에서 자동으로 열립니다.</string>
+    <string name="status_stopped">꺼짐</string>
+
+    <string name="error_missing_fields">MAC 주소와 휴대폰 번호를 먼저 입력해주세요.</string>
+    <string name="error_bluetooth_off">블루투스를 켜주세요.</string>
+    <string name="error_permission_denied">블루투스(주변 기기) 권한이 필요합니다.</string>
+    <string name="error_start_failed">스캔을 시작하지 못했습니다.</string>
+
+    <string name="explanation">
+        문에 다가가면 리더기가 등록된 휴대폰 번호를 확인하고 자동으로 열립니다. 서버 통신 없이
+        블루투스 신호만으로 동작합니다.
+    </string>
+
+    <string name="button_scan_nearby">📡 주변 출입문 스캔해서 추가</string>
+    <string name="scan_title">출입문 스캔</string>
+    <string name="scan_explanation">
+        문 앞에서 잠시 기다리면 주변 리더기가 아래 목록에 나타납니다. 원하는 걸 눌러서 추가하세요.
+    </string>
+    <string name="scan_searching">검색 중입니다…</string>
+    <string name="scan_cancel">취소</string>
+    <string name="toast_door_added">추가되었습니다</string>
+
+    <string name="button_view_log">📋 통신 기록 보기</string>
+    <string name="log_title">통신 기록</string>
+    <string name="log_empty">아직 기록이 없습니다.</string>
+    <string name="log_clear">기록 지우기</string>
+
+
+    <string name="notif_channel_name">상태 알림</string>
+    <string name="notif_bt_off_title">자동 출입 사용 불가</string>
+    <string name="notif_bt_off_text">블루투스가 꺼져 있어 동작하지 않습니다. 켜주세요.</string>
+
+
+    <string name="log_type_SCAN_ON">자동 출입 켬</string>
+    <string name="log_type_SCAN_OFF">자동 출입 끔</string>
+    <string name="log_type_DOOR_OPEN">문 열림 신호 전송</string>
+    <string name="log_type_ADVERTISE_FAIL">전송 실패</string>
+    <string name="log_type_REARMED">자동 복구</string>
+    <string name="log_type_REARM_FAILED">자동 복구 실패</string>
+    <string name="log_type_BLUETOOTH_OFF">블루투스 꺼짐</string>
+    <string name="log_type_BLUETOOTH_ON">블루투스 켜짐</string>
+    <string name="button_overlay_test">▶ 전송 애니메이션 테스트</string>
+    <string name="detail_time">시각</string>
+    <string name="detail_door">출입문</string>
+    <string name="detail_info">상세</string>
+    <string name="detail_close">닫기</string>
+    <string name="toast_opening">출입문 신호 전송 중…</string>
+    <string name="overlay_title">출입문</string>
+    <string name="overlay_sending">신호 전송 중</string>
+    <string name="overlay_done">신호 전송됨</string>
+    <string name="perm_title">필요한 설정</string>
+    <string name="perm_bt">블루투스 권한 (필수)</string>
+    <string name="perm_noti">알림 권한 (블루투스 꺼짐 안내)</string>
+    <string name="perm_battery">배터리 최적화 제외 (권장)</string>
+    <string name="perm_overlay">다른 앱 위에 표시 (전송 애니메이션)</string>
+    <string name="perm_ok">✓  %s</string>
+    <string name="perm_todo">○  %s — 눌러서 허용</string>
+    <string name="title_main">IoTPass Lite</string>
+    <string name="label_doors">출입문</string>
+    <string name="label_account">내 번호</string>
+</resources>

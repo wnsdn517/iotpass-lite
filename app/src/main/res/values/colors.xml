@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#2563EB</color>
+    <color name="primary_dark">#1E40AF</color>
+    <color name="primary_tonal">#E3EBFD</color>
+    <color name="background">#F4F6FA</color>
+    <color name="card">#FFFFFF</color>
+    <color name="divider">#E5E8EF</color>
+    <color name="text_primary">#171A21</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="ok">#16A34A</color>
+    <color name="fail">#DC2626</color>
+</resources>
