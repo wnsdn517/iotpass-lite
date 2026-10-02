@@ -95,7 +95,13 @@ public class MainActivity extends Activity {
                 requestOverlayPermission();
             }
         });
-        findViewById(R.id.overlay_test_button).setOnClickListener(v -> SendOverlay.show(this));
+        // Dev-only manual trigger for the overlay animation; hidden outside debug builds.
+        Button overlayTestButton = findViewById(R.id.overlay_test_button);
+        if (BuildConfig.DEBUG) {
+            overlayTestButton.setOnClickListener(v -> SendOverlay.show(this));
+        } else {
+            overlayTestButton.setVisibility(android.view.View.GONE);
+        }
         permBattery.setOnClickListener(v -> {
             if (!isBatteryExempt()) {
                 requestIgnoreBatteryOptimizations();

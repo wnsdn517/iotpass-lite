@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A single bold padlock silhouette — simple and legible at launcher size, unlike the earlier
-     door+signal-rings composition which read as cluttered. The keyhole is cut out in the
-     background's own blue, so it reads as a hole through the white lock body. -->
+<!-- A single bold padlock silhouette, two shapes only: shackle and body — simplest
+     legible mark at launcher size. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -20,10 +19,4 @@
         android:fillColor="#FFFFFF"
         android:pathData="M40,48 L68,48 A4,4 0 0 1 72,52 L72,74 A4,4 0 0 1 68,78
                            L40,78 A4,4 0 0 1 36,74 L36,52 A4,4 0 0 1 40,48 Z" />
-
-    <!-- Keyhole cutout (background color, so it reads as a hole in the body) -->
-    <path
-        android:fillColor="#1565C0"
-        android:pathData="M54,60 m-3.2,0 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0
-                           M52,61 L56,61 L55,69 L53,69 Z" />
 </vector>
