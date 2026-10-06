@@ -2,6 +2,8 @@
 build/
 app/build/
 local.properties
+signing.properties
+*.jks
 iotpass/
 jadx/
 CLAUDE.md

@@ -36,6 +36,11 @@
 
 Java(Kotlin 아님), 단일 모듈(`:app`), `androidx.core` 외 의존성 없음. minSdk 31.
 
+릴리스 APK는 `./gradlew assembleRelease`로 빌드하며, 로컬 `signing.properties`와
+`app/release-keystore.jks`의 릴리스 키로 서명됩니다. 이 두 파일은 저장소에 포함하지 않습니다.
+새 작업 환경에서는 같은 키와 설정을 복원해야 기존 설치 앱을 업데이트할 수 있으므로,
+키스토어를 안전한 위치에 백업하세요.
+
 ## 포함하지 않는 것
 
 - 정식 앱 APK, 디컴파일 산출물 — 저장소에 포함하지 않습니다.

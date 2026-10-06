@@ -2,6 +2,12 @@ plugins {
     id 'com.android.application'
 }
 
+def signingPropertiesFile = rootProject.file('signing.properties')
+def signingProperties = new Properties()
+if (signingPropertiesFile.isFile()) {
+    signingPropertiesFile.withInputStream { signingProperties.load(it) }
+}
+
 android {
     namespace 'dev.hoduj.iotpasslite'
     compileSdk 36
@@ -16,9 +22,23 @@ android {
         versionName "1.0"
     }
 
+    if (signingPropertiesFile.isFile()) {
+        signingConfigs {
+            release {
+                storeFile rootProject.file(signingProperties.getProperty('storeFile'))
+                storePassword signingProperties.getProperty('storePassword')
+                keyAlias signingProperties.getProperty('keyAlias')
+                keyPassword signingProperties.getProperty('keyPassword')
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            if (signingPropertiesFile.isFile()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
@@ -34,4 +54,35 @@ android {
 
 dependencies {
     implementation 'androidx.core:core:1.13.1'
+}
+
+tasks.register('verifyReleaseSigning') {
+    doLast {
+        if (!signingPropertiesFile.isFile()) {
+            throw new GradleException(
+                    "Missing signing.properties. Configure the local release signing key before building a release."
+            )
+        }
+
+        def requiredProperties = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword']
+        def missingProperties = requiredProperties.findAll {
+            !signingProperties.getProperty(it)?.trim()
+        }
+        if (!missingProperties.isEmpty()) {
+            throw new GradleException(
+                    "Missing required properties in signing.properties: ${missingProperties.join(', ')}"
+            )
+        }
+
+        def keystoreFile = rootProject.file(signingProperties.getProperty('storeFile'))
+        if (!keystoreFile.isFile()) {
+            throw new GradleException("Release keystore not found: ${keystoreFile}")
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == 'preReleaseBuild') {
+        dependsOn tasks.named('verifyReleaseSigning')
+    }
 }
