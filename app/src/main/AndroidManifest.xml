@@ -7,9 +7,12 @@
         android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <!-- Optional: only for the brief send animation; falls back to a toast without it. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
@@ -32,15 +35,12 @@
         </activity>
 
         <activity
-            android:name=".ScanDoorListActivity"
-            android:exported="false"
-            android:theme="@style/Theme.IoTPassLite.Sheet"
-            android:label="@string/scan_title" />
-
-        <activity
             android:name=".EventLogActivity"
             android:exported="false"
             android:label="@string/log_title" />
+
+        <!-- Foreground Service that holds the background BLE scan watcher active and
+             prevents process termination by Android OS battery managers. -->
 
         <!-- Target of the system-registered PendingIntent scan. Not exported: only the
              Bluetooth stack (holding the matching PendingIntent) can trigger it, which is also

@@ -10,4 +10,5 @@
     <color name="text_secondary">#6B7280</color>
     <color name="ok">#16A34A</color>
     <color name="fail">#DC2626</color>
+    <color name="app_background">#FF0B0B0E</color>
 </resources>

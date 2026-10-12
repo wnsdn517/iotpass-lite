@@ -9,3 +9,4 @@ jadx/
 CLAUDE.md
 *.apk
 .idea/
+jadx_out/

@@ -1,22 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A single bold padlock silhouette, two shapes only: shackle and body — simplest
-     legible mark at launcher size. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
-    <!-- Shackle -->
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Simple door outline with a small knob, white on black. -->
     <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="11"
-        android:strokeLineCap="round"
-        android:pathData="M40,48 A14,14 0 0 1 68,48" />
-
-    <!-- Body -->
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:pathData="M38,26 H70 V84 H38 Z" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M40,48 L68,48 A4,4 0 0 1 72,52 L72,74 A4,4 0 0 1 68,78
-                           L40,78 A4,4 0 0 1 36,74 L36,52 A4,4 0 0 1 40,48 Z" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M63,56 a3,3 0 1,0 0.01,0 z" />
 </vector>
