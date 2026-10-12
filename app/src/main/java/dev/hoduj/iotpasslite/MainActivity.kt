@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -188,12 +190,37 @@ private fun MainScreen(resumeTick: Int) {
         PresenceScan.start(context)
     }
 
+    fun refreshDoors(onDone: (Boolean) -> Unit = {}) {
+        busy = true
+        serverMessage = "서버에서 문 목록을 가져오는 중…"
+        background({ ServerSession.refreshDoors(context, phone.trim()) }) { result ->
+            busy = false
+            if (result is ServerSession.Result.Doors) {
+                Prefs.setDoors(context, result.doors)
+                doors = result.doors
+                serverMessage = if (result.doors.isEmpty()) {
+                    "서버에 등록된 출입문이 없습니다."
+                } else {
+                    "출입문 ${result.doors.size}개를 갱신했습니다."
+                }
+                onDone(result.doors.isNotEmpty())
+            } else {
+                serverMessage = describe(result)
+                onDone(false)
+            }
+        }
+    }
+
     fun setWatcher(on: Boolean) {
         if (!on) {
             DoorScanner.stop(context)
             EventLog.log(context, EventLog.Type.SCAN_OFF, null, null)
             Prefs.setEnabled(context, false)
             enabled = false
+            return
+        }
+        if (doors.isEmpty() && phone.trim().isNotEmpty()) {
+            refreshDoors { ok -> if (ok) setWatcher(true) }
             return
         }
         if (doors.isEmpty() || phone.trim().isEmpty()) {
@@ -259,25 +286,6 @@ private fun MainScreen(resumeTick: Int) {
             return
         }
         askRemote(door)
-    }
-
-    fun refreshDoors() {
-        busy = true
-        serverMessage = "서버에서 문 목록을 가져오는 중…"
-        background({ ServerSession.refreshDoors(context, phone.trim()) }) { result ->
-            busy = false
-            if (result is ServerSession.Result.Doors) {
-                Prefs.setDoors(context, result.doors)
-                doors = result.doors
-                serverMessage = if (result.doors.isEmpty()) {
-                    "서버에 등록된 출입문이 없습니다."
-                } else {
-                    "출입문 ${result.doors.size}개를 갱신했습니다."
-                }
-            } else {
-                serverMessage = describe(result)
-            }
-        }
     }
 
     val permissionRows = listOf(
@@ -363,6 +371,7 @@ private fun MainScreen(resumeTick: Int) {
                                     Prefs.setPhoneNumber(context, phone)
                                 },
                                 label = "전화번호",
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                             )
                         }

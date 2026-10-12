@@ -19,8 +19,8 @@ android {
         // app never has to ask for (or hold) any location permission.
         minSdk 31
         targetSdk 36
-        versionCode 3
-        versionName "2.0.1"
+        versionCode 4
+        versionName "2.0.2"
     }
 
     if (signingPropertiesFile.isFile()) {
@@ -69,7 +69,6 @@ dependencies {
     implementation 'androidx.compose.ui:ui:1.12.0'
     implementation 'androidx.compose.foundation:foundation:1.12.0'
     implementation 'top.yukonga.miuix.kmp:miuix-ui-android:0.9.4'
-    implementation 'top.yukonga.miuix.kmp:miuix-icons-android:0.9.4'
 }
 
 tasks.register('verifyReleaseSigning') {
