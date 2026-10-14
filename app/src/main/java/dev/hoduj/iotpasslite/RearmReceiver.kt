@@ -16,6 +16,7 @@ class RearmReceiver : BroadcastReceiver() {
             when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1)) {
                 BluetoothAdapter.STATE_OFF -> {
                     EventLog.log(context, EventLog.Type.BLUETOOTH_OFF, null, null)
+                    EventLog.raw(context, EventLog.Category.APP, "bluetooth off")
                     if (Prefs.isEnabled(context)) Notifications.showBluetoothOff(context)
                 }
                 BluetoothAdapter.STATE_ON -> {
@@ -34,10 +35,12 @@ class RearmReceiver : BroadcastReceiver() {
     private fun rearm(context: Context, reason: String) {
         if (!Prefs.isEnabled(context) || Prefs.getDoorMacs(context).isEmpty()) return
         try {
-            DoorScanner.start(context, Prefs.getDoorMacs(context))
+            if (DoorScanner.start(context, Prefs.getDoorMacs(context))) SendOverlay.showReady(context)
             EventLog.log(context, EventLog.Type.REARMED, null, "reason=$reason")
+            EventLog.raw(context, EventLog.Category.APP, "rearmed reason=$reason doors=${Prefs.getDoorMacs(context).size}")
         } catch (e: Exception) {
             EventLog.log(context, EventLog.Type.REARM_FAILED, null, "reason=$reason error=${e.message}")
+            EventLog.raw(context, EventLog.Category.APP, "rearm failed reason=$reason error=${e.message}")
         }
     }
 }

@@ -14,8 +14,21 @@ object Prefs {
     private const val KEY_ENABLED = "enabled"
     private const val KEY_OVERLAY_STYLE = "overlay_style"
 
+    private const val KEY_THEME = "theme"
+    private const val KEY_LANGUAGE = "language"
+    private const val KEY_PHONE_MANUAL = "phone_manual"
+    private const val KEY_ONBOARDED = "onboarded"
+
     const val OVERLAY_STYLE_TOP_ATTACHED = "top_attached"
     const val OVERLAY_STYLE_FLOATING = "floating"
+
+    const val THEME_SYSTEM = "system"
+    const val THEME_LIGHT = "light"
+    const val THEME_DARK = "dark"
+
+    const val LANG_SYSTEM = "system"
+    const val LANG_EN = "en"
+    const val LANG_KO = "ko"
 
     private val presence = HashMap<String, LongArray>()
 
@@ -82,6 +95,33 @@ object Prefs {
 
     fun isOverlayTopAttached(context: Context): Boolean =
         getOverlayStyle(context) == OVERLAY_STYLE_TOP_ATTACHED
+
+    /** "system", "light" or "dark". */
+    fun getTheme(context: Context): String = prefs(context).getString(KEY_THEME, THEME_SYSTEM) ?: THEME_SYSTEM
+
+    fun setTheme(context: Context, theme: String) {
+        prefs(context).edit().putString(KEY_THEME, theme).apply()
+    }
+
+    /** "system", "en" or "ko". "system" follows the device language. */
+    fun getLanguage(context: Context): String = prefs(context).getString(KEY_LANGUAGE, LANG_SYSTEM) ?: LANG_SYSTEM
+
+    fun setLanguage(context: Context, language: String) {
+        prefs(context).edit().putString(KEY_LANGUAGE, language).apply()
+    }
+
+    /** True when the phone number was typed by hand in settings instead of read from the device. */
+    fun isPhoneManual(context: Context): Boolean = prefs(context).getBoolean(KEY_PHONE_MANUAL, false)
+
+    fun setPhoneManual(context: Context, manual: Boolean) {
+        prefs(context).edit().putBoolean(KEY_PHONE_MANUAL, manual).apply()
+    }
+
+    fun isOnboarded(context: Context): Boolean = prefs(context).getBoolean(KEY_ONBOARDED, false)
+
+    fun setOnboarded(context: Context) {
+        prefs(context).edit().putBoolean(KEY_ONBOARDED, true).apply()
+    }
 
     /** One send per visit: a visit ends once the door has not been seen for [leaveGapMs]. While still
      *  nearby, re-send at most once per [retryMs]. Memory only; a process restart costs at most one extra send. */

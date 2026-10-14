@@ -79,6 +79,7 @@
     <string name="hint_reader_nearby">근처에 출입문 리더기가 감지되었습니다.</string>
     <string name="hint_reader_far">근처 리더기가 보이지 않습니다. 원격으로 열 수 있습니다.</string>
     <string name="overlay_connected">출입문 연결됨</string>
+    <string name="overlay_ready">감시 준비됨</string>
     <string name="overlay_title">출입문</string>
     <string name="overlay_sending">출입문 신호 전송 중</string>
     <string name="overlay_done">출입문 신호 전송됨</string>
@@ -92,4 +93,56 @@
     <string name="title_main">IoTPass Lite</string>
     <string name="label_doors">출입문</string>
     <string name="label_account">내 번호</string>
+
+    <string name="tab_home">출입</string>
+    <string name="tab_log">기록</string>
+    <string name="tab_settings">설정</string>
+    <string name="home_phone">전화번호  %s</string>
+    <string name="home_phone_missing">기기에서 번호를 읽지 못했습니다. 설정에서 확인하세요.</string>
+
+    <string name="ob_title">처음 설정</string>
+    <string name="ob_intro">자동 출입을 위해 아래 권한이 필요합니다.</string>
+    <string name="ob_bluetooth">블루투스 (주변 기기 검색 · 신호 전송)</string>
+    <string name="ob_phone">전화번호 (SIM에서 읽기)</string>
+    <string name="ob_notification">알림 (블루투스 꺼짐 안내)</string>
+    <string name="ob_overlay">다른 앱 위에 표시 (전송 애니메이션)</string>
+    <string name="ob_battery">배터리 최적화 제외 (백그라운드 안정성)</string>
+    <string name="ob_status_granted">허용됨</string>
+    <string name="ob_status_required">필수</string>
+    <string name="ob_status_optional">선택</string>
+    <string name="ob_allow">필수 권한 허용</string>
+    <string name="ob_open_overlay">다른 앱 위에 표시 설정 열기</string>
+    <string name="ob_start">시작하기</string>
+    <string name="ob_optional_note">선택 항목은 설정에서 바꿀 수 있습니다.</string>
+
+    <string name="set_theme">테마</string>
+    <string name="set_theme_system">기기 설정 따르기</string>
+    <string name="set_theme_light">밝게</string>
+    <string name="set_theme_dark">어둡게</string>
+    <string name="set_language">언어</string>
+    <string name="set_language_system">기기 언어</string>
+    <string name="set_language_en">English</string>
+    <string name="set_language_ko">한국어</string>
+    <string name="set_overlay">화면 오버레이 위치</string>
+    <string name="set_overlay_notch">노치 (화면 상단 일체형)</string>
+    <string name="set_overlay_floating">플로팅 (독립 캡슐)</string>
+    <string name="set_phone">전화번호</string>
+    <string name="set_phone_from_device">기기 번호 사용</string>
+    <string name="set_phone_current">현재 번호  %s</string>
+    <string name="set_phone_unavailable">번호를 읽을 수 없습니다.</string>
+    <string name="set_phone_warning">본인 번호만 입력하세요.</string>
+    <string name="set_phone_input_label">전화번호 (숫자만)</string>
+    <string name="set_phone_save">번호 저장</string>
+    <string name="set_phone_locked">자동 출입을 끄면 변경할 수 있습니다.</string>
+    <string name="set_more">기타</string>
+    <string name="set_raw_log">RAW 기록</string>
+
+    <string name="phone_manual_title">직접 입력 경고</string>
+    <string name="phone_manual_warning">비공식 클라이언트입니다. 이 앱은 출입 시스템의 공식 앱이 아니며 이용약관에 위배될 수 있습니다. 직접 입력한 번호로 생기는 문제와 법적 책임은 모두 사용자에게 있습니다. 본인 번호만 입력하세요.</string>
+    <string name="phone_manual_cancel">취소</string>
+    <string name="phone_manual_agree">동의하고 입력</string>
+    <string name="overlay_need_permission">다른 앱 위에 표시 권한을 허용해야 미리보기를 볼 수 있습니다.</string>
+
+    <string name="toast_doors_empty">서버에 등록된 출입문이 없습니다.</string>
+    <string name="toast_doors_updated">출입문 %d개를 갱신했습니다.</string>
 </resources>

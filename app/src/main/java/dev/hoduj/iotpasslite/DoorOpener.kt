@@ -18,6 +18,10 @@ object DoorOpener {
     private const val TAG = "IoTPassLite"
     private const val ADVERTISE_DURATION_MS = 1000L
 
+    /** Phone numbers are personal; the RAW log keeps only the last four digits. */
+    private fun maskPhone(phone: String): String =
+        if (phone.length <= 4) "****" else "***" + phone.takeLast(4)
+
     /** Returns false (and does not call [onFinished]) if advertising could not start at all. */
     fun send(
         context: Context,
@@ -39,23 +43,29 @@ object DoorOpener {
         val callback = object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
                 Log.i(TAG, "advertising phone number to door reader")
-                EventLog.log(context, EventLog.Type.DOOR_OPEN, doorMac, detail)
+                EventLog.raw(context, EventLog.Category.BLE, "advertise started mac=$doorMac $settingsInEffect")
+                // Advertising is not proof the door opened; only a confirmed server reply is logged as DOOR_OPEN.
+                EventLog.log(context, EventLog.Type.ADVERTISED, doorMac, detail)
             }
 
             override fun onStartFailure(errorCode: Int) {
                 Log.w(TAG, "advertise failed, error $errorCode")
+                EventLog.raw(context, EventLog.Category.BLE, "advertise failed mac=$doorMac error=$errorCode")
                 EventLog.log(context, EventLog.Type.ADVERTISE_FAIL, doorMac, "error=$errorCode")
             }
         }
 
+        val payload = DoorProtocol.advertiseData(phoneNumber)
+        EventLog.raw(
+            context, EventLog.Category.BLE,
+            "advertise request mac=$doorMac uuid=${DoorProtocol.PHONE_SERVICE_UUID} " +
+                "mfr=0x%04X phone=${maskPhone(phoneNumber)}".format(DoorProtocol.MANUFACTURER_ID),
+        )
         try {
-            advertiser.startAdvertising(
-                DoorProtocol.advertiseSettings(),
-                DoorProtocol.advertiseData(phoneNumber),
-                callback,
-            )
+            advertiser.startAdvertising(DoorProtocol.advertiseSettings(), payload, callback)
         } catch (e: SecurityException) {
             Log.w(TAG, "startAdvertising denied", e)
+            EventLog.raw(context, EventLog.Category.BLE, "advertise denied mac=$doorMac")
             EventLog.log(context, EventLog.Type.ADVERTISE_FAIL, doorMac, "permission denied")
             return false
         }
@@ -64,6 +74,7 @@ object DoorOpener {
         Handler(Looper.getMainLooper()).postDelayed({
             try {
                 advertiser.stopAdvertising(callback)
+                EventLog.raw(context, EventLog.Category.BLE, "advertise stopped mac=$doorMac")
             } catch (e: SecurityException) {
                 Log.w(TAG, "stopAdvertising denied", e)
             } finally {

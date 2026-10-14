@@ -7,6 +7,8 @@
         android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -34,13 +36,14 @@
             </intent-filter>
         </activity>
 
+
         <activity
-            android:name=".EventLogActivity"
+            android:name=".RawLogActivity"
             android:exported="false"
-            android:label="@string/log_title" />
+            android:label="RAW 기록" />
 
         <!-- Foreground Service that holds the background BLE scan watcher active and
-             prevents process termination by Android OS battery managers. -->
+             prevents process termination by Android OS battery managers. -->
 
         <!-- Target of the system-registered PendingIntent scan. Not exported: only the
              Bluetooth stack (holding the matching PendingIntent) can trigger it, which is also

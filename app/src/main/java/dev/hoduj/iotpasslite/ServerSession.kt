@@ -54,6 +54,7 @@ object ServerSession {
         } catch (e: IOException) {
             Result.Network(e.message ?: "network error")
         }
+        EventLog.raw(context, EventLog.Category.SERVER, "login cmd=33 -> ${describeShort(result)} (${result::class.simpleName})")
         EventLog.log(context, EventLog.Type.SERVER, null, "로그인 " + describeShort(result))
         return result
     }
@@ -77,6 +78,7 @@ object ServerSession {
         if (login !is Result.Success) return login
         return try {
             val reply = RemoteDoor.openReply(doorMac, phone)
+            EventLog.raw(context, EventLog.Category.SERVER, "open cmd=4 mac=$doorMac -> reply=$reply")
             if (reply == 0) {
                 EventLog.log(context, EventLog.Type.DOOR_OPEN, doorMac, "remote")
                 Result.Success
@@ -85,6 +87,7 @@ object ServerSession {
                 Result.OpenRejected(reply)
             }
         } catch (e: IOException) {
+            EventLog.raw(context, EventLog.Category.SERVER, "open cmd=4 mac=$doorMac -> network error: ${e.message}")
             EventLog.log(context, EventLog.Type.ADVERTISE_FAIL, doorMac, "remote network error")
             Result.Network(e.message ?: "network error")
         }

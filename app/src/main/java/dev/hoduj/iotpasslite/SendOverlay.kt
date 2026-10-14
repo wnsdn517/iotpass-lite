@@ -36,7 +36,12 @@ import android.view.animation.OvershootInterpolator
  *  closes after [HOLD_MS] without one. */
 object SendOverlay {
 
-    private const val HOLD_MS = 60_000L
+    /** Same window as [DoorPresence]: the overlay closes once no reader counts as nearby any more. */
+    private const val HOLD_MS = DoorPresence.NEARBY_WINDOW_MS
+    /** How long a settings preview stays on screen. */
+    private const val PREVIEW_MS = 2_500L
+    /** How long the "watcher ready" state stays on screen after the background scan starts. */
+    private const val READY_MS = 2_500L
     private const val POP_IN_MS = 420L
     private const val POP_OUT_MS = 280L
     private const val EXPAND_MS = 420L
@@ -45,7 +50,7 @@ object SendOverlay {
     private const val PULSE_MS = 1_600L
 
     private const val NOTCH_W_DP = 104f
-    private const val NOTCH_H_DP = 26f
+    private const val NOTCH_H_DP = 22f
     private const val NOTCH_FLARE_DP = 12f
     private const val NOTCH_RADIUS_DP = 13f
     private const val EXPANDED_W_DP = 184f
@@ -55,7 +60,7 @@ object SendOverlay {
     private const val EXPANDED_RADIUS_DP = 20f
 
     private const val PILL_W_DP = 112f
-    private const val PILL_H_DP = 26f
+    private const val PILL_H_DP = 22f
     private const val FLOAT_TOP_DP = 28
     private const val PILL_MARGIN_DP = 4
 
@@ -90,6 +95,12 @@ object SendOverlay {
     /** Set after the user swipes the overlay away; cleared once the readers have been quiet for [HOLD_MS]. */
     private var dismissed = false
 
+    private var appContext: Context? = null
+
+    private fun raw(message: String) {
+        appContext?.let { EventLog.raw(it, EventLog.Category.OVERLAY, message) }
+    }
+
     /** True while the shrink runs, so a sighting during it does not add a second window. */
     private var exiting = false
 
@@ -97,17 +108,51 @@ object SendOverlay {
 
     /** Shows the overlay, or keeps it up if already shown. Each call restarts the hold timer and refreshes
      *  the list of detected readers. */
+    /** Briefly shows "감시 준비됨" once the background scan is registered. Does nothing if the overlay is already
+     *  up, so it never replaces a live reader list. */
+    fun showReady(context: Context) {
+        val app = context.applicationContext
+        appContext = app
+        if (!canOverlay(app) || island != null || dismissed) return
+        addView(app, app.getString(R.string.overlay_ready))
+        handler.removeCallbacks(hideRunnable)
+        handler.postDelayed(hideRunnable, READY_MS)
+    }
+
+    /** Shows the overlay in the saved style for a few seconds, so a style change can be seen at once. A visible
+     *  overlay is removed first so the new style is drawn. Returns false when the overlay permission is missing. */
+    fun preview(context: Context): Boolean {
+        val app = context.applicationContext
+        if (!canOverlay(app)) return false
+        if (root != null) removeView()
+        show(app)
+        handler.removeCallbacks(hideRunnable)
+        handler.postDelayed(hideRunnable, PREVIEW_MS)
+        return true
+    }
+
     fun show(context: Context) {
         val app = context.applicationContext
+        appContext = app
         if (!canOverlay(app)) return
         handler.removeCallbacks(hideRunnable)
         handler.postDelayed(hideRunnable, HOLD_MS)
         val drawable = island
         if (drawable != null) {
+            drawable.text = app.getString(R.string.overlay_connected)
             drawable.lines = readerLines(app)
+            if (exiting && !dismissed) reappear()
             return
         }
-        if (!dismissed) addView(app)
+        if (!dismissed) addView(app, app.getString(R.string.overlay_connected))
+    }
+
+    /** Cancels a shrink-out in progress and slides the window back down. */
+    private fun reappear() {
+        raw("reappear while hiding")
+        exiting = false
+        pulseAnimator?.start()
+        moveTo(baseY, POP_IN_MS, OvershootInterpolator(1.1f), null)
     }
 
     /** One row per detected reader: (name or MAC, signal strength). */
@@ -118,10 +163,10 @@ object SendOverlay {
         }
     }
 
-    private fun addView(app: Context) {
+    private fun addView(app: Context, label: String) {
         density = app.resources.displayMetrics.density
         attachedMode = Prefs.isOverlayTopAttached(app)
-        val drawable = IslandDrawable(attachedMode, density, app.getString(R.string.overlay_connected), 0f)
+        val drawable = IslandDrawable(attachedMode, density, label, 0f)
         drawable.lines = readerLines(app)
         island = drawable
 
@@ -157,12 +202,12 @@ object SendOverlay {
         root = view
         baseY = lp.y
 
+        // Start above the screen edge so the first frame is already off-screen; no flash before the slide-in.
+        lp.y = baseY - lp.height
+        drawable.progress = 1f
         windowManager = app.getSystemService(WindowManager::class.java)
         windowManager?.addView(view, lp)
-
-        drawable.progress = 1f
-        lp.y = baseY - lp.height
-        windowManager?.updateViewLayout(view, lp)
+        raw("shown (lines=${drawable.lines.size})")
         moveTo(baseY, POP_IN_MS, OvershootInterpolator(1.1f), null)
         pulseAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = PULSE_MS
@@ -309,6 +354,7 @@ object SendOverlay {
     private fun shrinkAndRemove() {
         val lp = params ?: return
         if (root == null || exiting) return
+        raw("hide (dismissed=$dismissed, lines=${island?.lines?.size ?: 0})")
         exiting = true
         handler.removeCallbacks(hideRunnable)
         pulseAnimator?.cancel()
@@ -349,9 +395,15 @@ object SendOverlay {
     private class IslandDrawable(
         private val attached: Boolean,
         private val density: Float,
-        private val text: String,
+        text: String,
         private val barPx: Float,
     ) : Drawable() {
+        var text: String = text
+            set(value) {
+                field = value
+                invalidateSelf()
+            }
+
         var progress = 0f
             set(value) {
                 field = value

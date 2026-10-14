@@ -18,8 +18,16 @@ class DoorScanReceiver : BroadcastReceiver() {
         val matched = firstKnownDoorMatch(intent, knownDoors) ?: return
 
         val matchedDoor = matched.device.address
+        val open = DoorProtocol.isOpenSignal(matched.scanRecord)
+        if (open && DoorPresence.markOpened(matchedDoor)) {
+            EventLog.log(context, EventLog.Type.DOOR_OPEN, matchedDoor, "reader open flag")
+        }
         DoorPresence.markSeen(matchedDoor, matched.rssi)
-        if (!DoorPresence.isNearby(matchedDoor)) return
+        val nearby = DoorPresence.isNearby(matchedDoor)
+        if (open || EventLog.shouldLogSighting(matchedDoor)) {
+            EventLog.raw(context, EventLog.Category.BLE, EventLog.describeScan("sighting", matched, "open=$open nearby=$nearby"))
+        }
+        if (!nearby) return
         EventLog.touchPresence(context, matchedDoor)
         SendOverlay.show(context)
 
@@ -53,12 +61,26 @@ class DoorScanReceiver : BroadcastReceiver() {
  *  reader only counts as nearby once the signal is strong enough (less sensitive than the raw scan). */
 object DoorPresence {
     /** A reader counts as nearby only at or above this RSSI (dBm). */
-    const val NEAR_RSSI_DBM = -85
-    private const val NEARBY_WINDOW_MS = 10_000L
+    const val NEAR_RSSI_DBM = -70
+    /** How long after the last nearby sighting a reader still counts as nearby. */
+    const val NEARBY_WINDOW_MS = 10_000L
+    private const val OPEN_DEDUPE_MS = 60_000L
 
     private class Seen(val timeMillis: Long, val rssi: Int)
 
     private val lastSeen = java.util.concurrent.ConcurrentHashMap<String, Seen>()
+
+    private val lastOpened = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    /** True when an open flag starts a new opening. The reader keeps the flag set while the door is open, and
+     *  sightings can arrive seconds apart, so the window is measured from the last logged opening. */
+    fun markOpened(doorMac: String, now: Long = System.currentTimeMillis()): Boolean {
+        val key = doorMac.uppercase()
+        val prev = lastOpened[key]
+        if (prev != null && now - prev < OPEN_DEDUPE_MS) return false
+        lastOpened[key] = now
+        return true
+    }
 
     fun markSeen(doorMac: String, rssi: Int) {
         if (rssi < NEAR_RSSI_DBM) return

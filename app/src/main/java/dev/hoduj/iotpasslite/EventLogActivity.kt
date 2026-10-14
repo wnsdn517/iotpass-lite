@@ -1,41 +1,48 @@
 package dev.hoduj.iotpasslite
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import top.yukonga.miuix.kmp.basic.Button
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -46,289 +53,351 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-/** 기록: last 7 days as one bar per day (state, reader presence, door-open moments), tap a day for details,
- *  and the server communication log below. */
-class EventLogActivity : ComponentActivity() {
+/** 기록: every retained door open and failure, folded by hour of day, with the door list and recent events. */
+// Data colors for the bars and status dots. Layout and text use Miuix tokens.
+private val COLOR_OPEN = Color(0xFFFF9F0A)
+private val COLOR_SERVER = Color(0xFFBF5AF2)
+private val COLOR_ERROR = Color(0xFFFF453A)
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            MiuixTheme(controller = ThemeController(ColorSchemeMode.System)) {
-                LogScreen()
-            }
-        }
-    }
+/** A failed door open: the Bluetooth advertise did not start, or the server open was refused or unreachable.
+ *  Login and app-setup failures are not door opens, so they are not counted here. */
+fun isFailure(e: EventLog.Entry): Boolean = e.type == EventLog.Type.ADVERTISE_FAIL
+
+/** A door open that went through the server (cmd 4) rather than a local Bluetooth advertisement. */
+fun isServerOpen(e: EventLog.Entry): Boolean = e.detail?.startsWith("remote") == true
+
+private fun hourOf(millis: Long): Int = Calendar.getInstance().run {
+    timeInMillis = millis
+    get(Calendar.HOUR_OF_DAY)
 }
 
-private const val DAY_MS = 24L * 60 * 60 * 1000
-
-private val COLOR_RUNNING = Color(0xFF30D158)
-private val COLOR_OFF = Color(0xFF636366)
-private val COLOR_UNKNOWN = Color(0xFF2C2C2E)
-private val COLOR_PRESENCE = Color(0xFF0A84FF)
-private val COLOR_OPEN = Color(0xFFFF9F0A)
-private val COLOR_MUTED = Color(0x99FFFFFF)
-
-enum class BarState { RUNNING, OFF, UNKNOWN }
-
-/** A piece of one day's bar. */
-data class Segment(val start: Long, val end: Long, val state: BarState)
-
-/** One day: its state segments, the reader presence spans and door-open events inside it. */
-data class DayRow(
+/** One column of the chart: opens split by route, and failures, for one hour of the day. */
+data class Bin(
     val label: String,
-    val dayStart: Long,
-    val dayEnd: Long,
-    val segments: List<Segment>,
-    val presence: List<EventLog.PresenceSpan>,
-    val opens: List<EventLog.Entry>,
+    val bluetoothOpens: Int,
+    val serverOpens: Int,
+    val fails: Int,
 )
 
-object History {
+/** Everything the screen shows, read from the log off the main thread. */
+data class LogData(
+    val lastSeen: Map<String, Long>,
+    val timeline: List<EventLog.Entry>,
+    val all: List<EventLog.Entry>,
+) {
+    companion object {
+        val EMPTY = LogData(emptyMap(), emptyList(), emptyList())
 
-    fun startOfDay(millis: Long): Long = Calendar.getInstance().run {
-        timeInMillis = millis
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-        timeInMillis
+        fun load(context: Context): LogData {
+            val since = System.currentTimeMillis() - 7 * 24L * 60 * 60 * 1000
+            val lastSeen = EventLog.presence(context, since)
+                .groupBy { it.doorMac.uppercase() }
+                .mapValues { (_, spans) -> spans.maxOf { it.endMillis } }
+            val all = EventLog.events(context)
+            // Successful server logins are not listed: only door opens and failures.
+            val timeline = all.filter { it.type == EventLog.Type.DOOR_OPEN || isFailure(it) }.take(60)
+            return LogData(lastSeen, timeline, all)
+        }
     }
 
-    /** Watcher state spans from the event log, oldest first. Before the first event nothing is known. */
-    fun watcherSpans(events: List<EventLog.Entry>, now: Long): List<Pair<Long, Long>> =
-        Uptime.spans(events, now).map { span -> span.startMillis to (span.endMillis ?: now) }
-
-    fun days(context: Context, now: Long = System.currentTimeMillis(), count: Int = 7): List<DayRow> {
-        val today = startOfDay(now)
-        val since = today - (count - 1) * DAY_MS
-        val oldestFirst = EventLog.events(context).asReversed()
-        val firstEvent = oldestFirst.firstOrNull()?.timestampMillis ?: now
-        val spans = Uptime.spans(oldestFirst, now)
-        val presence = EventLog.presence(context, since)
-        val opens = oldestFirst.filter { it.type == EventLog.Type.DOOR_OPEN }
-        val dayLabel = SimpleDateFormat("M/d (E)", Locale.KOREA)
-
-        return (0 until count).map { back ->
-            val dayStart = today - back * DAY_MS
-            val dayEnd = minOf(dayStart + DAY_MS, now)
-            val segments = ArrayList<Segment>()
-            if (firstEvent > dayStart) {
-                segments += Segment(dayStart, minOf(firstEvent, dayEnd), BarState.UNKNOWN)
-            }
-            spans.forEach { span ->
-                val s = maxOf(span.startMillis, dayStart)
-                val e = minOf(span.endMillis ?: now, dayEnd)
-                if (e > s) {
-                    segments += Segment(s, e, if (span.running) BarState.RUNNING else BarState.OFF)
-                }
-            }
-            DayRow(
-                label = when (back) {
-                    0 -> "오늘"
-                    1 -> "어제"
-                    else -> dayLabel.format(dayStart)
-                },
-                dayStart = dayStart,
-                dayEnd = dayEnd,
-                segments = segments.filter { it.end > it.start },
-                presence = presence.filter { it.endMillis >= dayStart && it.startMillis <= dayEnd },
-                opens = opens.filter { it.timestampMillis in dayStart until dayEnd },
+    /** Hour-of-day columns over the whole retained period. */
+    fun bins(): List<Bin> {
+        val opens = all.filter { it.type == EventLog.Type.DOOR_OPEN }
+        val fails = all.filter(::isFailure)
+        return (0 until 24).map { h ->
+            val opensHere = opens.filter { hourOf(it.timestampMillis) == h }
+            Bin(
+                label = if (h % 6 == 0) "${h}시" else "",
+                bluetoothOpens = opensHere.count { !isServerOpen(it) },
+                serverOpens = opensHere.count { isServerOpen(it) },
+                fails = fails.count { hourOf(it.timestampMillis) == h },
             )
         }
     }
 }
 
-/** Watcher up/down spans from the event log. */
-data class Span(val startMillis: Long, val endMillis: Long?, val running: Boolean)
+/** One row of the recent-events list. */
+private data class TimelineItem(val time: Long, val color: Color, val title: String, val detail: String?)
 
-object Uptime {
-    fun spans(entriesOldestFirst: List<EventLog.Entry>, now: Long): List<Span> {
-        val out = ArrayList<Span>()
-        var running = false
-        var since = entriesOldestFirst.firstOrNull()?.timestampMillis ?: now
-        fun change(at: Long, nowRunning: Boolean) {
-            if (nowRunning == running) return
-            out += Span(since, at, running)
-            since = at
-            running = nowRunning
-        }
-        for (e in entriesOldestFirst) {
-            when (e.type) {
-                EventLog.Type.SCAN_ON, EventLog.Type.REARMED, EventLog.Type.BLUETOOTH_ON -> change(e.timestampMillis, true)
-                EventLog.Type.SCAN_OFF, EventLog.Type.BLUETOOTH_OFF -> change(e.timestampMillis, false)
-                else -> Unit
-            }
-        }
-        out += Span(since, null, running)
-        return out
-    }
-}
-
-private fun clockText(millis: Long): String = SimpleDateFormat("HH:mm", Locale.KOREA).format(millis)
-private fun clockSecText(millis: Long): String = SimpleDateFormat("HH:mm:ss", Locale.KOREA).format(millis)
+private fun dateTimeText(millis: Long): String = SimpleDateFormat("M/d HH:mm", Locale.KOREA).format(millis)
 
 @Composable
-private fun LogScreen() {
+internal fun LogTab() {
     val context = LocalContext.current
-    var revision by remember { mutableStateOf(0) }
-    val days = remember(revision) { History.days(context) }
-    val doorNames = remember(revision) { Prefs.getDoors(context).associate { it.mac to it.name } }
-    var expanded by remember { mutableStateOf<Long?>(null) }
-    val server = remember(revision) {
-        EventLog.events(context).filter {
-            it.type == EventLog.Type.SERVER ||
-                it.type == EventLog.Type.ADVERTISE_FAIL ||
-                it.type == EventLog.Type.REARM_FAILED ||
-                (it.detail?.startsWith("remote") == true)
-        }.take(100)
+    // Reading the log happens off the main thread; the screen fills in when it is ready.
+    val data by produceState(initialValue = LogData.EMPTY) {
+        value = withContext(Dispatchers.IO) { LogData.load(context) }
     }
+    val doors = remember { Prefs.getDoors(context) }
+    val bins = remember(data) { data.bins() }
+    val opens = data.all.filter { it.type == EventLog.Type.DOOR_OPEN }
+    val fails = data.all.filter(::isFailure)
 
-    fun doorLabel(mac: String?): String = mac?.let { doorNames[it]?.ifEmpty { null } ?: it } ?: "-"
-
-    Scaffold(topBar = { TopAppBar(title = "기록") }) { padding ->
+    Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 112.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Legend()
-
-            Text(text = "최근 7일", color = COLOR_MUTED, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    days.forEachIndexed { index, day ->
-                        if (index > 0) Divider()
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { expanded = if (expanded == day.dayStart) null else day.dayStart }
-                                .padding(vertical = 10.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = day.label, modifier = Modifier.width(78.dp), fontSize = 13.sp)
-                                DayBar(day = day, modifier = Modifier.weight(1f))
-                            }
-                            if (expanded == day.dayStart) {
-                                DayDetail(day = day, doorLabel = ::doorLabel)
-                            }
-                        }
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        CategoryStat("블루투스", "${opens.count { !isServerOpen(it) }}회", COLOR_OPEN)
+                        CategoryStat("서버", "${opens.count { isServerOpen(it) }}회", COLOR_SERVER)
+                        CategoryStat("실패", "${fails.size}회", COLOR_ERROR)
+                    }
+                    EventBars(bins = bins, modifier = Modifier.fillMaxWidth().height(120.dp))
+                }
+            }
+
+            SectionLabel("문")
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    if (doors.isEmpty()) {
+                        Text(
+                            text = "등록된 문이 없습니다",
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.padding(vertical = 16.dp),
+                        )
+                    }
+                    doors.forEachIndexed { index, door ->
+                        if (index > 0) HorizontalDivider()
+                        DoorRow(
+                            name = door.name.ifEmpty { door.mac },
+                            nearby = DoorPresence.isNearby(door.mac),
+                            lastSeen = data.lastSeen[door.mac.uppercase()],
+                        )
                     }
                 }
             }
 
-            Text(text = "서버 통신 · 오류", color = COLOR_MUTED, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+            SectionLabel("최근 이벤트")
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    if (server.isEmpty()) {
-                        Text(text = "기록 없음", color = COLOR_MUTED, modifier = Modifier.padding(vertical = 12.dp))
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    val doorNames = doors.associate { it.mac to it.name }
+                    val items = data.timeline.mapNotNull { timelineItem(it, doorNames) }
+                    if (items.isEmpty()) {
+                        Text(
+                            text = "기록 없음",
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.padding(vertical = 16.dp),
+                        )
                     }
-                    server.forEachIndexed { index, e ->
-                        if (index > 0) Divider()
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                            Text(
-                                text = clockSecText(e.timestampMillis),
-                                color = COLOR_MUTED,
-                                fontSize = 12.sp,
-                                modifier = Modifier.width(72.dp),
+                    items.forEachIndexed { index, item ->
+                        if (index > 0) HorizontalDivider()
+                        TimelineRow(item)
+                    }
+                }
+            }
+
+            RawLinkCard()
+        }
+    }
+}
+
+/** Hour-of-day bars on a light grid. Dashed lines mark half and full scale, with the scale on the left. Hairlines
+ *  split the day into 6-hour blocks. Each column stacks Bluetooth opens (orange), server opens (purple) and
+ *  failures (red) from the bottom. */
+@Composable
+private fun EventBars(bins: List<Bin>, modifier: Modifier) {
+    val peak = bins.maxOfOrNull { it.bluetoothOpens + it.serverOpens + it.fails }?.coerceAtLeast(1) ?: 1
+    val gridColor = MiuixTheme.colorScheme.dividerLine
+    val muted = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            Column(
+                modifier = Modifier.width(28.dp).fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.End,
+            ) {
+                Text(text = "$peak", color = muted, style = MiuixTheme.textStyles.footnote2)
+                Text(text = "${peak / 2}", color = muted, style = MiuixTheme.textStyles.footnote2)
+                Text(text = "0", color = muted, style = MiuixTheme.textStyles.footnote2)
+            }
+            Canvas(modifier = Modifier.padding(start = 6.dp, end = 16.dp).fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+                val slot = w / bins.size.coerceAtLeast(1)
+                val barW = slot * 0.6f
+                val radius = CornerRadius(barW / 2)
+                val dash = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 6.dp.toPx()))
+                val line = 1.dp.toPx()
+
+                // Scale lines: top, half, and the baseline.
+                listOf(0f, 0.5f, 1f).forEach { f ->
+                    val y = h * (1f - f)
+                    drawLine(
+                        gridColor,
+                        Offset(0f, y),
+                        Offset(w, y),
+                        strokeWidth = line,
+                        pathEffect = if (f == 0f) null else dash,
+                    )
+                }
+                // 6-hour block dividers.
+                listOf(6, 12, 18).forEach { hour ->
+                    val x = hour * slot
+                    drawLine(gridColor, Offset(x, 0f), Offset(x, h), strokeWidth = line)
+                }
+
+                bins.forEachIndexed { i, bin ->
+                    val left = i * slot + (slot - barW) / 2
+                    var bottom = h
+                    listOf(
+                        bin.bluetoothOpens to COLOR_OPEN,
+                        bin.serverOpens to COLOR_SERVER,
+                        bin.fails to COLOR_ERROR,
+                    ).forEach { (count, color) ->
+                        if (count > 0) {
+                            val segH = h * count / peak
+                            drawRoundRect(
+                                color,
+                                topLeft = Offset(left, bottom - segH),
+                                size = Size(barW, segH),
+                                cornerRadius = radius,
                             )
-                            Text(text = e.detail ?: e.type.name, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            bottom -= segH
                         }
                     }
                 }
             }
-
         }
-    }
-}
-
-@Composable
-private fun Legend() {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        LegendItem(COLOR_RUNNING, "작동 중")
-        LegendItem(COLOR_OFF, "꺼짐")
-        LegendItem(COLOR_UNKNOWN, "정보 없음")
-        LegendItem(COLOR_PRESENCE, "감지")
-        LegendItem(COLOR_OPEN, "열림")
-    }
-}
-
-@Composable
-private fun LegendItem(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(8.dp).background(color, RoundedCornerShape(2.dp)))
-        Text(text = " $label", color = COLOR_MUTED, fontSize = 11.sp)
-    }
-}
-
-/** One day as a bar: state segments on top, reader presence along the bottom, door-open ticks on top. */
-@Composable
-private fun DayBar(day: DayRow, modifier: Modifier) {
-    val length = (day.dayEnd - day.dayStart).coerceAtLeast(1L).toFloat()
-    Canvas(
-        modifier = modifier
-            .height(18.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(COLOR_UNKNOWN),
-    ) {
-        val h = size.height
-        fun x(millis: Long): Float = ((millis - day.dayStart) / length) * size.width
-
-        day.segments.forEach { seg ->
-            val color = when (seg.state) {
-                BarState.RUNNING -> COLOR_RUNNING
-                BarState.OFF -> COLOR_OFF
-                BarState.UNKNOWN -> COLOR_UNKNOWN
+        Row(modifier = Modifier.fillMaxWidth().padding(start = 34.dp, end = 16.dp)) {
+            bins.forEach { bin ->
+                // Each label starts at its slot's left edge, the same spot as the 6-hour divider line.
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    Text(
+                        text = bin.label,
+                        color = muted,
+                        style = MiuixTheme.textStyles.footnote2,
+                        softWrap = false,
+                        modifier = Modifier.padding(start = 3.dp).wrapContentWidth(Alignment.Start, unbounded = true),
+                    )
+                }
             }
-            val left = x(seg.start)
-            drawRect(color, Offset(left, 0f), Size(x(seg.end) - left, h))
-        }
-        day.presence.forEach { span ->
-            val left = x(maxOf(span.startMillis, day.dayStart))
-            val right = x(minOf(span.endMillis, day.dayEnd))
-            drawRect(COLOR_PRESENCE, Offset(left, h - 4.dp.toPx()), Size(maxOf(right - left, 2f), 4.dp.toPx()))
-        }
-        day.opens.forEach { e ->
-            drawRect(COLOR_OPEN, Offset(x(e.timestampMillis), 0f), Size(2.dp.toPx(), h))
         }
     }
 }
 
 @Composable
-private fun DayDetail(day: DayRow, doorLabel: (String?) -> String) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(start = 78.dp, top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+private fun CategoryStat(title: String, value: String, color: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(text = title, color = color, style = MiuixTheme.textStyles.footnote1)
+        Text(text = value, style = MiuixTheme.textStyles.body1)
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    SectionHeader(text = text)
+}
+
+@Composable
+private fun DoorRow(name: String, nearby: Boolean, lastSeen: Long?) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (day.presence.isEmpty() && day.opens.isEmpty()) {
-            Text(text = "감지 · 열림 기록 없음", color = COLOR_MUTED, fontSize = 12.sp)
-        }
-        day.presence.forEach { span ->
-            Text(
-                text = "감지  ${clockText(span.startMillis)} ~ ${clockText(span.endMillis)}  ${doorLabel(span.doorMac)}",
-                fontSize = 12.sp,
-            )
-        }
-        day.opens.forEach { e ->
-            val how = if (e.detail?.startsWith("remote") == true) "원격" else "블루투스"
-            Text(
-                text = "열림  ${clockSecText(e.timestampMillis)}  ${doorLabel(e.doorMac)}  $how",
-                color = COLOR_OPEN,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.ic_bluetooth),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(if (nearby) COLOR_OPEN else MiuixTheme.colorScheme.onSurfaceVariantSummary),
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(text = name, modifier = Modifier.weight(1f), style = MiuixTheme.textStyles.body1)
+        Text(
+            text = when {
+                nearby -> "지금 감지됨"
+                lastSeen != null -> "마지막 ${dateTimeText(lastSeen)}"
+                else -> "감지 기록 없음"
+            },
+            color = if (nearby) COLOR_OPEN else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            style = MiuixTheme.textStyles.footnote1,
+        )
+    }
+}
+
+private fun timelineItem(e: EventLog.Entry, doorNames: Map<String, String>): TimelineItem? {
+    fun doorLabel(mac: String?): String = mac?.let { doorNames[it]?.ifEmpty { null } ?: it } ?: "-"
+    return when {
+        e.type == EventLog.Type.DOOR_OPEN -> TimelineItem(
+            time = e.timestampMillis,
+            color = if (isServerOpen(e)) COLOR_SERVER else COLOR_OPEN,
+            title = "문 열림 · ${doorLabel(e.doorMac)}",
+            detail = if (isServerOpen(e)) "서버" else "블루투스",
+        )
+        isFailure(e) -> TimelineItem(
+            time = e.timestampMillis,
+            color = COLOR_ERROR,
+            title = "문 열기 실패 · ${doorLabel(e.doorMac)}",
+            detail = e.detail,
+        )
+        else -> null
     }
 }
 
 @Composable
-private fun Divider() {
-    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0x22FFFFFF)))
+private fun TimelineRow(item: TimelineItem) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .size(8.dp)
+                .background(item.color, CircleShape),
+        )
+        Column(
+            modifier = Modifier.weight(1f).padding(start = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(text = item.title, style = MiuixTheme.textStyles.body2)
+            item.detail?.let {
+                Text(
+                    text = it,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    style = MiuixTheme.textStyles.footnote1,
+                )
+            }
+        }
+        Text(
+            text = dateTimeText(item.time),
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            style = MiuixTheme.textStyles.footnote2,
+        )
+    }
+}
+
+@Composable
+private fun RawLinkCard() {
+    val context = LocalContext.current
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { context.startActivity(Intent(context, RawLogActivity::class.java)) },
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(text = "RAW 기록", style = MiuixTheme.textStyles.body2)
+                Text(
+                    text = "앱 상태, BLE 송수신, 서버 요청 원문",
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    style = MiuixTheme.textStyles.footnote1,
+                )
+            }
+            Text(
+                text = "›",
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                style = MiuixTheme.textStyles.title4,
+            )
+        }
+    }
 }
